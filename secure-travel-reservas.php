@@ -98,22 +98,11 @@ function str_guardar_datos_habitacion($post_id) {
 
 add_action('save_post', 'str_guardar_datos_habitacion');
 
-// Registrar Custom Post Type: Reservas
 
-
-// ==========================================
-// 1. CLASE SIMULACIÓN PASARELA (CÓDIGO PHP PURO)
-// ==========================================
 class STC_Pasarela_Pagos {
-    /**
-     * Simula la conexión con el banco.
-     * Retorna array con 'exito' (true/false) y mensaje.
-     */
-    public static function procesar_pago($monto) {
-        // Simulamos respuesta del banco
-        // rand(0, 1) devuelve 0 o 1. Si es 1, aprueba. Si es 0, rechaza.
-        $aprobado = (bool) rand(0, 1); 
 
+    public static function procesar_pago($monto) {
+        $aprobado = (bool) rand(0, 1); 
         if ($monto <= 0) {
             return ['exito' => false, 'mensaje' => 'Monto inválido (0)'];
         }
@@ -133,9 +122,7 @@ class STC_Pasarela_Pagos {
     }
 }
 
-// ==========================================
-// 2. REGISTRO DE RESERVAS (TU CÓDIGO)
-// ==========================================
+
 function str_registrar_reservas() {
     $labels = array(
         'name'          => 'Reservas',
@@ -147,19 +134,17 @@ function str_registrar_reservas() {
 
     $args = array(
         'labels'      => $labels,
-        'public'      => false, // No visible en frontend público directamente
-        'show_ui'     => true,  // Visible en admin
+        'public'      => false, 
+        'show_ui'     => true,  
         'menu_icon'   => 'dashicons-calendar-alt',
-        'supports'    => array('title'), // Usamos el título para el nombre del cliente
+        'supports'    => array('title'), 
     );
 
     register_post_type('reservas', $args);
 }
 add_action('init', 'str_registrar_reservas');
 
-// ==========================================
-// 3. META BOX (FORMULARIO EN ADMIN)
-// ==========================================
+
 function str_reserva_meta_box() {
     add_meta_box(
         'str_reserva_datos',
@@ -173,23 +158,23 @@ function str_reserva_meta_box() {
 add_action('add_meta_boxes', 'str_reserva_meta_box');
 
 function str_reserva_meta_box_html($post) {
-    // Recuperar valores guardados
+    
     $habitacion_id = get_post_meta($post->ID, 'habitacion_id', true);
     $fecha_inicio  = get_post_meta($post->ID, 'fecha_inicio', true);
     $fecha_fin     = get_post_meta($post->ID, 'fecha_fin', true);
     $total         = get_post_meta($post->ID, 'total_reserva', true);
+
     
-    // Datos cliente
     $nombre        = get_post_meta($post->ID, 'nombre_cliente', true);
     $documento     = get_post_meta($post->ID, 'documento_cliente', true);
     $tipo_cliente  = get_post_meta($post->ID, 'tipo_cliente', true);
     $huespedes     = get_post_meta($post->ID, 'cantidad_huespedes', true);
     
-    // Datos Pago
+    
     $estado_pago   = get_post_meta($post->ID, 'estado_pago', true);
-    $info_banco    = get_post_meta($post->ID, 'info_banco', true); // Aquí guardamos el log del banco
+    $info_banco    = get_post_meta($post->ID, 'info_banco', true); 
 
-    // Obtener habitaciones para el select
+    
     $habitaciones = get_posts(array('post_type' => 'habitaciones', 'numberposts' => -1));
     ?>
 
@@ -263,18 +248,13 @@ function str_reserva_meta_box_html($post) {
     <?php
 }
 
-// ==========================================
-// 4. GUARDADO + CÁLCULO + LÓGICA DE PAGO
-// ==========================================
-// ==========================================
-// 4. LÓGICA FINAL: PROCESAR PAGO + CAMBIAR ESTADO HABITACIÓN
-// ==========================================
+
 function str_procesar_reserva($post_id) {
-    // 1. Validaciones de seguridad
+   
     if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
     if (get_post_type($post_id) !== 'reservas') return;
 
-    // 2. Guardar datos básicos del formulario
+    
     $campos = ['habitacion_id', 'fecha_inicio', 'fecha_fin', 'nombre_cliente', 'documento_cliente', 'tipo_cliente', 'cantidad_huespedes'];
     foreach ($campos as $campo) {
         if (isset($_POST[$campo])) {
@@ -282,10 +262,10 @@ function str_procesar_reserva($post_id) {
         }
     }
 
-    // Recogemos el ID de la habitación para poder cambiarle el estado al final
+    
     $habitacion_id = isset($_POST['habitacion_id']) ? intval($_POST['habitacion_id']) : get_post_meta($post_id, 'habitacion_id', true);
 
-    // 3. Calcular Total Automático
+   
     $total = 0;
     if ($habitacion_id && !empty($_POST['fecha_inicio']) && !empty($_POST['fecha_fin'])) {
         $precio_hab = (int) get_post_meta($habitacion_id, 'precio_habitacion', true);
@@ -297,17 +277,16 @@ function str_procesar_reserva($post_id) {
         update_post_meta($post_id, 'total_reserva', $total);
     }
 
-    // 4. LÓGICA DE LA PASARELA DE PAGOS
-    // Obtenemos qué eligió el usuario en el select
+    
     $accion_usuario = isset($_POST['estado_pago']) ? $_POST['estado_pago'] : '';
     
-    // Variable para guardar en qué estado quedará la reserva al final
+    
     $estado_final_reserva = $accion_usuario; 
 
-    // DETECTAR SI EL USUARIO QUIERE PROCESAR EL PAGO (Texto exacto de tu HTML)
+    
     if ($accion_usuario === 'Procesar Pago') {
         
-        // Llamamos a la simulación
+        //simulación
         $resultado = STC_Pasarela_Pagos::procesar_pago($total);
 
         if ($resultado['exito']) {
@@ -321,27 +300,24 @@ function str_procesar_reserva($post_id) {
         }
     }
 
-    // Guardamos el estado resultante en la Reserva (Pagado, Rechazado o Pendiente)
+    // (Pagado, Rechazado o Pendiente)
     update_post_meta($post_id, 'estado_pago', $estado_final_reserva);
 
 
-    // 5. SINCRONIZACIÓN CON LA HABITACIÓN (EL PUNTO CLAVE DEL ADMIN)
+    
     if ($habitacion_id) {
         if ($estado_final_reserva === 'Pagado') {
-            // Si se pagó, la habitación pasa a RESERVADA (Rojo en Admin)
+            
             update_post_meta($habitacion_id, 'estado_habitacion', 'Reservada');
         } else {
-            // Si es Pendiente, Rechazado o cualquier otra cosa, la habitación se LIBERA (Verde en Admin)
+            
             update_post_meta($habitacion_id, 'estado_habitacion', 'Disponible');
         }
     }
 }
 add_action('save_post', 'str_procesar_reserva');
 add_action('save_post', 'str_procesar_reserva');
-// ==========================================
-// 5. MEJORA VISUAL: COLUMNAS EN LISTADO HABITACIONES
-// ==========================================
-// Agregar las columnas al encabezado
+
 function str_columnas_habitaciones($columns) {
     $columns['precio'] = 'Precio';
     $columns['estado'] = 'Estado Actual';
@@ -349,7 +325,7 @@ function str_columnas_habitaciones($columns) {
 }
 add_filter('manage_habitaciones_posts_columns', 'str_columnas_habitaciones');
 
-// Rellenar las columnas con los datos
+
 function str_llenar_columnas_habitaciones($column, $post_id) {
     if ($column === 'precio') {
         echo '$' . number_format(get_post_meta($post_id, 'precio_habitacion', true));
@@ -362,20 +338,18 @@ function str_llenar_columnas_habitaciones($column, $post_id) {
 }
 add_action('manage_habitaciones_posts_custom_column', 'str_llenar_columnas_habitaciones', 10, 2);
 
-// ==========================================
-// 6. INFORME DE ADMINISTRADOR (DASHBOARD WIDGET)
-// ==========================================
+
 function str_dashboard_widget_informe() {
     wp_add_dashboard_widget(
-        'str_informe_ocupacion',         // ID del widget
-        '🏨 Informe de Ocupación Hotelera', // Título
-        'str_mostrar_informe_dashboard'  // Función que muestra el contenido
+        'str_informe_ocupacion',        
+        '🏨 Informe de Ocupación Hotelera', 
+        'str_mostrar_informe_dashboard'  
     );
 }
 add_action('wp_dashboard_setup', 'str_dashboard_widget_informe');
 
 function str_mostrar_informe_dashboard() {
-    // Obtener todas las habitaciones
+   
     $habitaciones = get_posts(array(
         'post_type' => 'habitaciones',
         'numberposts' => -1
@@ -390,11 +364,11 @@ function str_mostrar_informe_dashboard() {
         if ($estado === 'Reservada') {
             $reservadas++;
         } else {
-            $disponibles++; // Asumimos disponible si no dice reservada
+            $disponibles++; 
         }
     }
 
-    // Mostrar la tabla simple
+    
     ?>
     <div style="text-align: center; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px;">
         <h2>Total Habitaciones: <?php echo $total; ?></h2>
@@ -413,4 +387,5 @@ function str_mostrar_informe_dashboard() {
         <a href="<?php echo admin_url('edit.php?post_type=habitaciones'); ?>" class="button button-primary">Gestionar Habitaciones</a>
     </p>
     <?php
+
 }
